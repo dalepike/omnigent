@@ -307,8 +307,8 @@ async def test_happy_path_delivers_selected_option_to_fresh_step() -> None:
     # The elicitation was published under the deterministic id for these ids.
     assert len(elicit_calls) == 1
     assert elicit_calls[0][0] == agy_elicitation_id(_CASCADE, _TRAJ, 3)
-    # The TUI prompt was dismissed by typing the selected option id + Enter.
-    assert inject_tui.calls == [["2", "Enter"]]
+    # RPC delivery closes the prompt directly; no trailing TUI keystrokes.
+    assert inject_tui.calls == []
 
 
 @pytest.mark.asyncio
@@ -343,7 +343,7 @@ async def test_changed_fallback_question_requires_a_new_answer() -> None:
     assert len(deliver.calls) == 1
     assert deliver.calls[0]["step_index"] == 4
     assert deliver.calls[0]["payload"]["askQuestion"]["responses"][0]["selectedOptionIds"] == ["1"]
-    assert inject_tui.calls == [["1", "Enter"]]
+    assert inject_tui.calls == []
 
 
 # ---------------------------------------------------------------------------
@@ -451,14 +451,13 @@ async def test_permission_accept_delivers_allow_true() -> None:
     assert len(deliver.calls) == 1
     assert deliver.calls[0]["payload"] == {"permission": {"allow": True}}
     assert deliver.calls[0]["step_index"] == 2
-    # #1200: Approve drives agy's TUI prompt to option 1 ("Yes") + Enter, so the
-    # attended terminal advances (the RPC alone leaves the TUI prompt open).
-    assert inject_tui.calls == [["1", "Enter"]]
+    # RPC delivery answers and closes the prompt; no TUI keystrokes are injected.
+    assert inject_tui.calls == []
 
 
 @pytest.mark.asyncio
 async def test_permission_reject_delivers_allow_false_and_types_no() -> None:
-    """Permission rejected → deliver ``allow: False`` AND type option 4 ("No")."""
+    """Permission rejected → deliver ``allow: False`` via RPC without TUI keys."""
     pending = _pending_permission(step_index=2)
     waiting = _permission_step(step_index=2)
     request, _ = _elicitation_returner(ElicitationResult(action="decline", content=None))
@@ -476,8 +475,7 @@ async def test_permission_reject_delivers_allow_false_and_types_no() -> None:
     )
 
     assert deliver.calls[0]["payload"] == {"permission": {"allow": False}}
-    # #1200: Reject drives agy's TUI prompt to option 4 ("No") + Enter.
-    assert inject_tui.calls == [["4", "Enter"]]
+    assert inject_tui.calls == []
 
 
 @pytest.mark.asyncio
@@ -570,7 +568,7 @@ async def test_changed_permission_requires_fresh_consent(
     assert len(deliver.calls) == 1
     assert deliver.calls[0]["step_index"] == 3
     assert deliver.calls[0]["payload"] == {"permission": {"allow": False}}
-    assert inject_tui.calls == [["4", "Enter"]]
+    assert inject_tui.calls == []
 
 
 @pytest.mark.asyncio
@@ -654,11 +652,10 @@ async def test_tui_dismissal_failure_does_not_undo_delivered_verdict() -> None:
         inject_tui=inject_tui,
     )
 
-    # The RPC verdict was delivered exactly once and the bridge returned cleanly
-    # despite the TUI keystroke raising.
+    # The RPC verdict was delivered exactly once and no TUI keystroke was attempted.
     assert len(deliver.calls) == 1
     assert deliver.calls[0]["payload"] == {"permission": {"allow": True}}
-    assert inject_tui.calls == [["1", "Enter"]]
+    assert inject_tui.calls == []
 
 
 @pytest.mark.asyncio

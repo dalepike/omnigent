@@ -436,7 +436,6 @@ async def bridge_interaction(
             current = fresh
             continue
 
-        keys = to_tui_selection_keys(fresh["kind"], result, fresh["spec"])
         if (
             fresh["kind"] == "permission"
             and result.action == "accept"
@@ -445,6 +444,7 @@ async def bridge_interaction(
         ):
             # The native menu saves the rule and answers the step. RPC approval
             # first can close that menu, turning the selection into a chat message.
+            keys = to_tui_selection_keys(fresh["kind"], result, fresh["spec"])
             try:
                 await inject_tui(keys)
             except Exception as exc:
@@ -466,22 +466,8 @@ async def bridge_interaction(
                 step_index=fresh["step_index"],
                 payload=payload,
             )
-            # Older agy versions can leave the attended prompt open after RPC.
-            if keys:
-                try:
-                    await inject_tui(keys)
-                except Exception as tui_exc:
-                    # Best-effort TUI dismissal — the backend step is already
-                    # answered, so never undo a delivered verdict over a flaky pane.
-                    _logger.warning(
-                        "agy interaction delivered over RPC but TUI dismissal failed "
-                        "(cascade=%s, kind=%s, step=%d, keys=%r): %r",
-                        cascade_id,
-                        current["kind"],
-                        fresh["step_index"],
-                        keys,
-                        tui_exc,
-                    )
+            # Do not inject TUI keys after RPC delivery: RPC closes the menu,
+            # so trailing keystrokes land in the composer as user chat messages.
             return  # delivered successfully
         except AntigravityRpcError as exc:
             if _INPUT_NOT_REGISTERED not in str(exc).lower():

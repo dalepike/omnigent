@@ -104,7 +104,7 @@ async def test_permission_consent_through_reader_and_server(
             assert response.status_code == 202, response.text
         await asyncio.wait_for(task, timeout=5)
         assert delivered == ([{"permission": {"allow": False}}] if changed_command else [])
-        assert typed == [["4" if changed_command else digit, "Enter"]]
+        assert typed == ([] if changed_command else [[digit, "Enter"]])
     finally:
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
